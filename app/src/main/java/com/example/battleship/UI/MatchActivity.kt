@@ -3,6 +3,7 @@ package com.example.battleship.UI
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.AsyncTask
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
@@ -24,6 +25,15 @@ import kotlin.text.Charsets.UTF_8
 import android.os.Handler
 import androidx.core.view.ViewCompat
 import androidx.fragment.app.FragmentStatePagerAdapter
+import com.example.battleship.UI.snackbar.ShotResultSnackbar
+import com.example.battleship.database.DatabaseHelper
+import com.example.battleship.database.model.BattleshipMatchResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.lang.ref.WeakReference
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.timer
 
 
@@ -39,30 +49,12 @@ class MatchActivity : AppCompatActivity() {
 
     private val REQUEST_CODE_REQUIRED_PERMISSIONS = 1
 
-    var timerHandler = Handler()
-    var startTime: Long = 0
-
-    var timerRunnable: Runnable = object : Runnable {
-
-        override fun run() {
-            val millis = System.currentTimeMillis() - startTime
-            var seconds = (millis / 1000).toInt()
-            val minutes = seconds / 60
-            seconds = seconds % 60
-
-            //timerTextView.setText(String.format("%d:%02d", minutes, seconds))
-
-            timerHandler.postDelayed(this, 500);
-        }
-    }
-
-
     private lateinit var mPager: ViewPager
     private lateinit var binding: ActivityMatchBinding
     private lateinit var pagerAdapter: FragmentStatePagerAdapter
 
 
-    private val codeName = "Temporal name"
+    private var codeName = "Temporal name"
 
     private lateinit var opponentEndpointId: String
 
@@ -73,6 +65,9 @@ class MatchActivity : AppCompatActivity() {
     private var isConnected = false
 
     private var isSearching = false
+
+    private var isOnScreen = false
+    private var mCountTimeTask: CountTimeTask? = null
 
     var playerTurn = true
     private var isWaitingTurnInfo = false
@@ -85,6 +80,51 @@ class MatchActivity : AppCompatActivity() {
     private var payload: String = ""
 
     private lateinit var connectionsClient: ConnectionsClient;
+
+    class CountTimeTask : AsyncTask<Int, Int, Void>() {
+
+        var activityRef: WeakReference<MatchActivity>? = null
+
+        fun link(act: MatchActivity) {
+            activityRef = WeakReference(act)
+        }
+
+        fun unLink() {
+            activityRef = null
+        }
+
+        override fun doInBackground(vararg params: Int?): Void? {
+            var secondsPassed = params[0]
+            if (secondsPassed != null) {
+                while (!isCancelled) {
+                    if (activityRef?.get()?.isOnScreen == true) {
+                        try {
+                            TimeUnit.SECONDS.sleep(1)
+                        } catch (e: InterruptedException) {
+                            break
+                        }
+                        publishProgress(secondsPassed++)
+                    }
+                }
+            }
+
+            return null
+        }
+
+        override fun onProgressUpdate(vararg values: Int?) {
+            super.onProgressUpdate(*values)
+            activityRef?.get()?.textview_time_passed?.text = java.lang.StringBuilder(
+                "${values[0]?.div(3600) ?: 0}:${values[0]?.rem(3600)?.div(60)
+                    ?: 0}:${values[0]?.rem(60) ?: 0}"
+            ).toString()
+        }
+    }
+
+    override fun onRetainCustomNonConfigurationInstance(): Any? {
+        mCountTimeTask?.unLink()
+        return mCountTimeTask
+    }
+
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(p0: String, p1: ConnectionInfo) {
@@ -138,6 +178,9 @@ class MatchActivity : AppCompatActivity() {
                 "Disconnected",
                 Snackbar.LENGTH_SHORT
             ).show()
+            binding.disconnectButton.isEnabled = false
+            binding.connectButton.isEnabled = true
+            binding.hostButton.isEnabled = true
         }
     }
 
@@ -166,35 +209,29 @@ class MatchActivity : AppCompatActivity() {
                 playerTurn = isPlayerReady
                 if (playerTurn) {
                     mPager.currentItem = 1
+                    mCountTimeTask = CountTimeTask()
+                    mCountTimeTask?.execute(0)
+                } else {
+                    mPager.currentItem = 0
                 }
             } else {
                 if (playerTurn) {
                     when (payload) {
                         "DESTR" -> {
                             playerShotResult = ShotResult.DESTROYED
-                            Snackbar.make(
-                                coordinator_layout,
-                                "Ship was destroyed!",
-                                Snackbar.LENGTH_SHORT
-                            ).show()
                         }
                         "MISS" -> {
                             playerShotResult = ShotResult.MISS
                             playerTurn = false
-                            Snackbar.make(
-                                coordinator_layout,
-                                "Ha! You missed!",
-                                Snackbar.LENGTH_SHORT
-                            ).show()
+                            mPager.currentItem = 0
                         }
                         "HIT" -> {
                             playerShotResult = ShotResult.HIT
-                            Snackbar.make(
-                                coordinator_layout,
-                                "Enemy ship is on fire!",
-                                Snackbar.LENGTH_SHORT
-                            ).show()
                         }
+                    }
+                    ShotResultSnackbar.make(mPager, playerShotResult).show()
+                    if (mPager.currentItem != 1) {
+                        mPager.currentItem = 1
                     }
                     val adapter = mPager.adapter as MyViewPagerAdapter
                     val opponentFragment =
@@ -205,6 +242,21 @@ class MatchActivity : AppCompatActivity() {
                         playerShotResult
                     )
                     if (opponentFragment.opponentGrid.getNumberOfShips() == -10) {
+                        val playerFragment =
+                            adapter.registeredFragments[0] as PlayerFieldFragment
+                        val opponentFieldFragment =
+                            adapter.registeredFragments[1] as OpponentFieldFragment
+                        val parts = textview_time_passed.text.split(":")
+                        CoroutineScope(Dispatchers.IO).launch {
+                            addMatchResultToStatistic(
+                                this@MatchActivity,
+                                BattleshipMatchResult.BATTLESHIP_WIN,
+                                playerFragment.playerGrid.toString(),
+                                opponentFieldFragment.opponentGrid.toString(),
+                                parts[0].toInt() * 3600 + parts[1].toInt() * 60 + parts[2].toInt(),
+                                opponentEndpointId
+                            )
+                        }
                         val builder = AlertDialog.Builder(this@MatchActivity)
                         builder
                             .setTitle("Congratulations! You won!")
@@ -214,12 +266,14 @@ class MatchActivity : AppCompatActivity() {
                     }
                 } else {
                     if (payload.matches("[0-9]+ [0-9]+".toRegex())) {
-                        mPager.currentItem = 0
                         val parts = payload.split(" ")
                         opponentShot = Pair(parts[0].toInt(), parts[1].toInt())
                         val adapter = mPager.adapter as MyViewPagerAdapter
                         val playerFragment =
                             adapter.registeredFragments[0] as PlayerFieldFragment
+                        if (mPager.currentItem != 0) {
+                            mPager.currentItem = 0
+                        }
                         val shotResult =
                             playerFragment.getShot(opponentShot.first, opponentShot.second)
                         connectionsClient.sendPayload(
@@ -245,10 +299,27 @@ class MatchActivity : AppCompatActivity() {
             }
         }
 
-        override fun onPayloadTransferUpdate(p0: String, p1: PayloadTransferUpdate) {
-            Log.i(TAG, "onPayloadTransferUpdate: data received")
-            if (p1.status == PayloadTransferUpdate.Status.SUCCESS) {
+        fun addMatchResultToStatistic(
+            context: Context,
+            result: Int,
+            playerGrid: String,
+            opponentGrid: String,
+            duration: Int,
+            opponentName: String
+        ) {
+            val db = DatabaseHelper(context, null)
+            db.insertMatchResult(
+                result,
+                playerGrid,
+                opponentGrid,
+                duration,
+                opponentName
+            )
+        }
 
+        override fun onPayloadTransferUpdate(p0: String, p1: PayloadTransferUpdate) {
+            if (p1.status == PayloadTransferUpdate.Status.SUCCESS) {
+                Log.i(TAG, "onPayloadTransferUpdate: data received succefully")
             }
         }
     }
@@ -261,6 +332,11 @@ class MatchActivity : AppCompatActivity() {
                 StringBuilder("ready").toString().toByteArray()
             )
         )
+        if (isOtherPlayerReady) {
+            mPager.currentItem = 0
+            mCountTimeTask = CountTimeTask()
+            mCountTimeTask?.execute(0)
+        }
     }
 
     fun sendShotAtCurrentCoordinate() {
@@ -270,11 +346,6 @@ class MatchActivity : AppCompatActivity() {
                 StringBuilder("${playerShot.first} ${playerShot.second}").toString().toByteArray()
             )
         )
-        Snackbar.make(
-            coordinator_layout,
-            "Shot sent",
-            Snackbar.LENGTH_SHORT
-        ).show()
     }
 
     private fun startAdvertising() {
@@ -296,7 +367,19 @@ class MatchActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (isOtherPlayerReady && isPlayerReady) {
+            mCountTimeTask = lastNonConfigurationInstance as CountTimeTask?
+            if (mCountTimeTask == null) {
+                mCountTimeTask = CountTimeTask()
+                mCountTimeTask?.execute(0)
+            }
+            mCountTimeTask?.link(this)
+        }
         setContentView(R.layout.activity_match)
+        val extras = intent.extras
+        if (extras != null) {
+            codeName = extras.getString("NICKNAME") ?: "NewPlayer"
+        }
 
         binding = DataBindingUtil.setContentView(this, R.layout.activity_match)
 
@@ -312,16 +395,32 @@ class MatchActivity : AppCompatActivity() {
 
         binding.connectButton.setOnClickListener { connectButtonClicked() }
         binding.disconnectButton.setOnClickListener { disconnectButtonClicked() }
+        binding.hostButton.setOnClickListener { hostButtonClicked() }
     }
 
     private fun connectButtonClicked() {
-        //startAdvertising()
         startDiscovery()
         Snackbar.make(
             coordinator_layout,
             "Searching game",
             Snackbar.LENGTH_SHORT
         ).show()
+        binding.disconnectButton.isEnabled = true
+        binding.connectButton.isEnabled = false
+        binding.hostButton.isEnabled = false
+        isSearching = true
+    }
+
+    private fun hostButtonClicked() {
+        startAdvertising()
+        Snackbar.make(
+            coordinator_layout,
+            "hosting game",
+            Snackbar.LENGTH_SHORT
+        ).show()
+        binding.disconnectButton.isEnabled = true
+        binding.connectButton.isEnabled = false
+        binding.hostButton.isEnabled = false
         isSearching = true
     }
 
@@ -345,18 +444,26 @@ class MatchActivity : AppCompatActivity() {
                 Snackbar.LENGTH_SHORT
             ).show()
         }
+
+        binding.disconnectButton.isEnabled = false
+        binding.connectButton.isEnabled = true
+        binding.hostButton.isEnabled = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        isOnScreen = false
     }
 
     override fun onStart() {
         super.onStart()
-
+        isOnScreen = true
         if (android.os.Build.VERSION.SDK_INT >= 23) {
             if (!hasPermissions(this, REQUIRED_PERMISSIONS)) {
                 requestPermissions(REQUIRED_PERMISSIONS, REQUEST_CODE_REQUIRED_PERMISSIONS)
             }
         }
     }
-
 
     private fun hasPermissions(context: Context, permissions: Array<String>): Boolean {
         for (permission in permissions) {

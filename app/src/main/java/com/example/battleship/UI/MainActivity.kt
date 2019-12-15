@@ -9,19 +9,21 @@ import com.example.battleship.R
 import com.example.battleship.databinding.ActivityMainBinding
 import android.widget.LinearLayout
 import android.widget.EditText
-
-
+import com.example.battleship.StatiscticActivity
+import com.example.battleship.UI.snackbar.ShotResultSnackbar
+import com.example.battleship.game.ShotResult
 
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private lateinit var nickname: String
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
+        nickname = resources.getString(R.string.default_username)
         binding =
             DataBindingUtil.setContentView(this, com.example.battleship.R.layout.activity_main)
 
@@ -29,11 +31,16 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(
                 this, MatchActivity::class.java
             )
+            intent.putExtra("NICKNAME",nickname)
+            startActivity(intent)
+        }
+
+        binding.statButton.setOnClickListener {
+            val intent = Intent(this, StatiscticActivity::class.java)
             startActivity(intent)
         }
 
         binding.changeUsernameButton.setOnClickListener { onChangeUsernameClicked() }
-
     }
 
     fun onChangeUsernameClicked() {
@@ -42,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         alertDialog.setMessage("Change your username")
 
         val input = EditText(this@MainActivity)
-        //input.setText(resources.getString(R.string.default_username))
+        input.setText(nickname)
         val lp = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.MATCH_PARENT
@@ -52,8 +59,8 @@ class MainActivity : AppCompatActivity() {
 
         alertDialog.setPositiveButton(
             "Change"
-        ) {dialog, which ->
-            //Здесь будет изменение юзернейма
+        ) { dialog, which ->
+            nickname = input.text.toString()
         }
 
         alertDialog.setNegativeButton(

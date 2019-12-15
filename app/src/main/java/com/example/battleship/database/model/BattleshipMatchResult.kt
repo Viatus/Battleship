@@ -30,4 +30,9 @@ class BattleshipMatchResult {
         this.duration = duration
         this.opponentName = opponentName
     }
+
+    companion object {
+        const val BATTLESHIP_WIN = 1
+        const val BATTLESHIP_LOSE = -1
+    }
 }

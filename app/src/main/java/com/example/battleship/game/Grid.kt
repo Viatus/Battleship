@@ -78,21 +78,30 @@ class Grid() {
         return result
     }
 
-    fun updateField(x: Int, y: Int, shotResult: ShotResult): Boolean {
+    fun updateField(x: Int, y: Int, shotResult: ShotResult): List<Pair<Int, Int>>? {
         if (x !in 0 until FIELD_SIZE || y !in 0 until FIELD_SIZE) {
-            return false
+            return null
         }
 
         if (field[x][y] != GridCell.SEA) {
-            return false
+            return null
         }
 
+        val changedList = ArrayList<Pair<Int, Int>>()
+
         when (shotResult) {
-            ShotResult.HIT -> field[x][y] = GridCell.HIT
-            ShotResult.MISS -> field[x][y] = GridCell.CHECKED
+            ShotResult.HIT -> {
+                field[x][y] = GridCell.HIT
+                changedList.add(Pair(x, y))
+            }
+            ShotResult.MISS -> {
+                field[x][y] = GridCell.CHECKED
+                changedList.add(Pair(x, y))
+            }
             ShotResult.DESTROYED -> {
                 numberOfShips--
                 field[x][y] = GridCell.HIT
+                changedList.add(Pair(x, y))
                 val cells = mutableListOf<Pair<Int, Int>>()
                 cells.add(Pair(x, y))
                 while (cells.isNotEmpty()) {
@@ -107,6 +116,7 @@ class Grid() {
                                         if (field[cell.first + i][cell.second + k] == GridCell.SEA) {
                                             field[cell.first + i][cell.second + k] =
                                                 GridCell.CHECKED
+                                            changedList.add(Pair(cell.first + i, cell.second + k))
                                         }
                                     }
                                 }
@@ -114,12 +124,15 @@ class Grid() {
                         }
                     }
                     field[cell.first][cell.second] = GridCell.DESTROYED
+                    if (cell.first != x && cell.second != y) {
+                        changedList.add(cell)
+                    }
                     cells.removeAt(0)
                 }
             }
         }
 
-        return true
+        return changedList
     }
 
     fun shoot(x: Int, y: Int): ShotResult {
@@ -127,20 +140,21 @@ class Grid() {
             return ShotResult.MISS
         }
 
-        return when (field[x][y]) {
+        when (field[x][y]) {
             GridCell.SEA -> {
                 field[x][y] = GridCell.CHECKED
-                ShotResult.MISS
+                return ShotResult.MISS
             }
             GridCell.SHIP -> {
                 field[x][y] = GridCell.HIT
                 if (isShipDestroyed(x, y)) {
-                    ShotResult.DESTROYED
+                    numberOfShips--
+                    return ShotResult.DESTROYED
                 } else {
-                    ShotResult.HIT
+                    return ShotResult.HIT
                 }
             }
-            else -> ShotResult.MISS
+            else -> return ShotResult.MISS
         }
     }
 
@@ -173,9 +187,9 @@ class Grid() {
     fun restoreFieldFromString(str: String) {
         require(str.length == 100)
 
-        for(i in 0..9) {
+        for (i in 0..9) {
             for (j in 0..9) {
-                field[i][j] = when(str[i * 10 + j]) {
+                field[i][j] = when (str[i * 10 + j]) {
                     '1' -> GridCell.CHECKED
                     '2' -> GridCell.SHIP
                     '3' -> GridCell.HIT
@@ -190,13 +204,15 @@ class Grid() {
         val str = StringBuilder("")
         for (i in 0..9) {
             for (j in 0..9) {
-                str.append(when(field[i][j]) {
-                    GridCell.SEA -> 0
-                    GridCell.CHECKED -> 1
-                    GridCell.SHIP -> 2
-                    GridCell.HIT -> 3
-                    GridCell.DESTROYED -> 4
-                }.toString())
+                str.append(
+                    when (field[i][j]) {
+                        GridCell.SEA -> 0
+                        GridCell.CHECKED -> 1
+                        GridCell.SHIP -> 2
+                        GridCell.HIT -> 3
+                        GridCell.DESTROYED -> 4
+                    }.toString()
+                )
             }
         }
         return str.toString()

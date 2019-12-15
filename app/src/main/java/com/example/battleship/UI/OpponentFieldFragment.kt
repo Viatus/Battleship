@@ -135,13 +135,11 @@ class OpponentFieldFragment : Fragment() {
     }
 
     fun updateAfterShotResult(i: Int, j: Int, result: ShotResult) {
-        opponentGrid.updateField(j, i, result)
-        for (l in 0..9) {
-            for (k in 0..9) {
-                if (fieldImages[l][k].gridCell != opponentGrid.field[k][l]) {
-                    fieldImages[l][k].gridCell = opponentGrid.field[k][l]
-                    fieldImages[l][k].updateImage()
-                }
+       val changedList =  opponentGrid.updateField(j, i, result)
+        if (changedList!=null){
+            for (pair in changedList) {
+                fieldImages[pair.second][pair.first].gridCell = opponentGrid.field[pair.first][pair.second]
+                fieldImages[pair.second][pair.first].updateImage()
             }
         }
     }

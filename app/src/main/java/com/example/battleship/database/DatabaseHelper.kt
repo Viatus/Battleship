@@ -20,7 +20,7 @@ class DatabaseHelper(
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
-            "CREATE_TABLE" + TABLE_NAME + "("
+            "CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " ("
                     + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
                     + COLUMN_OPPONENT_NAME + " TEXT,"
                     + COLUMN_RESULT + " TEXT,"

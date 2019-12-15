@@ -18,42 +18,53 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <!--<fragment
-                android:id="@+id/matchStatFragment"
-                class="com.example.battleship.UI.MatchStatisticsFragment"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:layout_constraintBottom_toTopOf="@+id/pager"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />-->
-
             <Button
+                android:id="@+id/hostButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                app:layout_constraintTop_toTopOf="parent"
+                android:text="@string/host_match_text"
                 app:layout_constraintBottom_toTopOf="@id/pager"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toStartOf="@id/disconnectButton"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintRight_toLeftOf="@id/connectButton"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <Button
                 android:id="@+id/connectButton"
-                android:text="@string/connect_text"/>
-
-            <Button
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                app:layout_constraintTop_toTopOf="parent"
+                android:text="@string/connect_text"
                 app:layout_constraintBottom_toTopOf="@id/pager"
-                app:layout_constraintStart_toEndOf="@id/connectButton"
-                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintLeft_toRightOf="@id/hostButton"
+                app:layout_constraintRight_toLeftOf="@id/disconnectButton"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <Button
                 android:id="@+id/disconnectButton"
-                android:text="@string/disconnect_text"/>
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:enabled="false"
+                android:text="@string/disconnect_text"
+                app:layout_constraintBottom_toTopOf="@id/pager"
+                app:layout_constraintLeft_toRightOf="@id/connectButton"
+                app:layout_constraintRight_toRightOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
 
             <androidx.viewpager.widget.ViewPager
                 android:id="@+id/pager"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintBottom_toTopOf="@id/textview_time_passed"
                 app:layout_constraintTop_toBottomOf="@id/connectButton" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layout_constraintTop_toBottomOf="@id/pager"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintLeft_toLeftOf="@id/pager"
+                app:layout_constraintRight_toRightOf="parent"
+                android:id="@+id/textview_time_passed"
+                android:layout_marginBottom="12dp"/>
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 

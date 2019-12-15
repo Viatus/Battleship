@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Battleship</string>
 
-    <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="field_image">field image</string>
     <string name="readyButton">Ready</string>
@@ -9,6 +8,12 @@
     <string name="start_match_button">Start match</string>
     <string name="statistics_button">Statistics</string>
     <string name="change_username_button">change username</string>
-    <string name="disconnect_text">disconnect</string>
-    <string name="connect_text">connect</string>
+    <string name="disconnect_text">Disconnect</string>
+    <string name="connect_text">Search</string>
+    <string name="missed_message">Sadly, you missed</string>
+    <string name="hit_message">Nice shot!</string>
+    <string name="destroyed_message">You destroyed it!</string>
+    <string name="player_grid_image_description">player grid</string>
+    <string name="opponent_grid_image_description">opponent grid</string>
+    <string name="host_match_text">Host</string>
 </resources>
