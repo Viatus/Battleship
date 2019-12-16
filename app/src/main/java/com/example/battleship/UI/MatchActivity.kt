@@ -55,6 +55,7 @@ class MatchActivity : AppCompatActivity() {
 
 
     private var codeName = "Temporal name"
+    private var opponentNickname = "other player"
 
     private lateinit var opponentEndpointId: String
 
@@ -97,7 +98,7 @@ class MatchActivity : AppCompatActivity() {
             var secondsPassed = params[0]
             if (secondsPassed != null) {
                 while (!isCancelled) {
-                    if (activityRef?.get()?.isOnScreen == true) {
+                    if (activityRef?.get()?.isOnScreen == true && activityRef?.get()?.isOtherPlayerReady == true && activityRef?.get()?.isPlayerReady == true) {
                         try {
                             TimeUnit.SECONDS.sleep(1)
                         } catch (e: InterruptedException) {
@@ -131,7 +132,7 @@ class MatchActivity : AppCompatActivity() {
             Log.i(TAG, "onConnectionInitiated: showing dialog for accepting connection")
             val builder = AlertDialog.Builder(this@MatchActivity)
             builder
-                .setTitle("Accept connection")
+                .setTitle("Accept connection with $p0")
                 .setPositiveButton("Accept") { dialog, which ->
                     Nearby.getConnectionsClient(this@MatchActivity)
                         .acceptConnection(p0, payloadCallback)
@@ -155,6 +156,10 @@ class MatchActivity : AppCompatActivity() {
                     isConnected = true
                     isSearching = false
                     opponentEndpointId = p0
+                    connectionsClient.sendPayload(
+                        opponentEndpointId,
+                        Payload.fromBytes(codeName.toByteArray())
+                    )
                 }
                 ConnectionsStatusCodes.STATUS_CONNECTION_REJECTED -> Snackbar.make(
                     coordinator_layout,
@@ -199,64 +204,43 @@ class MatchActivity : AppCompatActivity() {
         override fun onPayloadReceived(p0: String, p1: Payload) {
             payload = String(p1.asBytes()!!, UTF_8)
             Log.i(TAG, "onPayloadReceived: data received : $payload")
-            if (payload == "ready") {
-                isOtherPlayerReady = true
-                Snackbar.make(
-                    coordinator_layout,
-                    "Your opponent is ready",
-                    Snackbar.LENGTH_SHORT
-                ).show()
-                playerTurn = isPlayerReady
-                if (playerTurn) {
-                    mPager.currentItem = 1
-                    mCountTimeTask = CountTimeTask()
-                    mCountTimeTask?.execute(0)
-                } else {
-                    mPager.currentItem = 0
-                }
+            if (!isPlayerReady && !isOtherPlayerReady && payload != "ready") {
+                opponentNickname = payload
             } else {
-                if (playerTurn) {
-                    when (payload) {
-                        "DESTR" -> {
-                            playerShotResult = ShotResult.DESTROYED
+                if (payload.length == 100) {
+                    val result =
+                        if (playerTurn) {
+                            BattleshipMatchResult.BATTLESHIP_WIN
+                        } else {
+                            BattleshipMatchResult.BATTLESHIP_LOSE
                         }
-                        "MISS" -> {
-                            playerShotResult = ShotResult.MISS
-                            playerTurn = false
-                            mPager.currentItem = 0
-                        }
-                        "HIT" -> {
-                            playerShotResult = ShotResult.HIT
-                        }
-                    }
-                    ShotResultSnackbar.make(mPager, playerShotResult).show()
-                    if (mPager.currentItem != 1) {
-                        mPager.currentItem = 1
-                    }
                     val adapter = mPager.adapter as MyViewPagerAdapter
-                    val opponentFragment =
-                        adapter.registeredFragments[1] as OpponentFieldFragment
-                    opponentFragment.updateAfterShotResult(
-                        playerShot.first,
-                        playerShot.second,
-                        playerShotResult
-                    )
-                    if (opponentFragment.opponentGrid.getNumberOfShips() == -10) {
-                        val playerFragment =
-                            adapter.registeredFragments[0] as PlayerFieldFragment
-                        val opponentFieldFragment =
-                            adapter.registeredFragments[1] as OpponentFieldFragment
-                        val parts = textview_time_passed.text.split(":")
-                        CoroutineScope(Dispatchers.IO).launch {
-                            addMatchResultToStatistic(
-                                this@MatchActivity,
-                                BattleshipMatchResult.BATTLESHIP_WIN,
-                                playerFragment.playerGrid.toString(),
-                                opponentFieldFragment.opponentGrid.toString(),
-                                parts[0].toInt() * 3600 + parts[1].toInt() * 60 + parts[2].toInt(),
-                                opponentEndpointId
-                            )
-                        }
+                    val playerFragment =
+                        adapter.registeredFragments[0] as PlayerFieldFragment
+                    mCountTimeTask?.cancel(true)
+                    val parts = textview_time_passed.text.split(":")
+                    CoroutineScope(Dispatchers.IO).launch {
+                        addMatchResultToStatistic(
+                            this@MatchActivity,
+                            result,
+                            playerFragment.playerGrid.toString(),
+                            payload,
+                            parts[0].toInt() * 3600 + parts[1].toInt() * 60 + parts[2].toInt(),
+                            opponentNickname
+                        )
+                    }
+                    if (!playerTurn) {
+                        connectionsClient.sendPayload(
+                            opponentEndpointId,
+                            Payload.fromBytes(playerFragment.playerGrid.toString().toByteArray())
+                        )
+                        val builder = AlertDialog.Builder(this@MatchActivity)
+                        builder
+                            .setTitle("Oh, it seems you lost! Good luck next time!")
+                            .setPositiveButton("Okay") { dialog, which ->
+                                finish()
+                            }.show()
+                    } else {
                         val builder = AlertDialog.Builder(this@MatchActivity)
                         builder
                             .setTitle("Congratulations! You won!")
@@ -265,34 +249,82 @@ class MatchActivity : AppCompatActivity() {
                             }.show()
                     }
                 } else {
-                    if (payload.matches("[0-9]+ [0-9]+".toRegex())) {
-                        val parts = payload.split(" ")
-                        opponentShot = Pair(parts[0].toInt(), parts[1].toInt())
-                        val adapter = mPager.adapter as MyViewPagerAdapter
-                        val playerFragment =
-                            adapter.registeredFragments[0] as PlayerFieldFragment
-                        if (mPager.currentItem != 0) {
-                            mPager.currentItem = 0
-                        }
-                        val shotResult =
-                            playerFragment.getShot(opponentShot.first, opponentShot.second)
-                        connectionsClient.sendPayload(
-                            opponentEndpointId,
-                            Payload.fromBytes(
-                                shotResult.toString().toByteArray()
-                            )
-                        )
-                        playerTurn = shotResult == ShotResult.MISS
+                    if (payload == "ready") {
+                        isOtherPlayerReady = true
+                        Snackbar.make(
+                            coordinator_layout,
+                            "Your opponent is ready",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                        playerTurn = isPlayerReady
                         if (playerTurn) {
                             mPager.currentItem = 1
+                        } else {
+                            mPager.currentItem = 0
                         }
-                        if (playerFragment.playerGrid.getNumberOfShips() == 0) {
-                            val builder = AlertDialog.Builder(this@MatchActivity)
-                            builder
-                                .setTitle("Oh, it seems you lost! Good luck next time!")
-                                .setPositiveButton("Okay") { dialog, which ->
-                                    finish()
-                                }.show()
+                    } else {
+                        if (playerTurn) {
+                            when (payload) {
+                                "DESTR" -> {
+                                    playerShotResult = ShotResult.DESTROYED
+                                }
+                                "MISS" -> {
+                                    playerShotResult = ShotResult.MISS
+                                    playerTurn = false
+                                    mPager.currentItem = 0
+                                }
+                                "HIT" -> {
+                                    playerShotResult = ShotResult.HIT
+                                }
+                            }
+                            ShotResultSnackbar.make(mPager, playerShotResult).show()
+                            if (mPager.currentItem != 1) {
+                                mPager.currentItem = 1
+                            }
+                            val adapter = mPager.adapter as MyViewPagerAdapter
+                            val opponentFragment =
+                                adapter.registeredFragments[1] as OpponentFieldFragment
+                            opponentFragment.updateAfterShotResult(
+                                playerShot.first,
+                                playerShot.second,
+                                playerShotResult
+                            )
+                            if (opponentFragment.opponentGrid.getNumberOfShips() == -10) {
+                                val playerFragment =
+                                    adapter.registeredFragments[0] as PlayerFieldFragment
+                                connectionsClient.sendPayload(
+                                    opponentEndpointId,
+                                    Payload.fromBytes(playerFragment.playerGrid.toString().toByteArray())
+                                )
+                            }
+                        } else {
+                            if (payload.matches("[0-9]+ [0-9]+".toRegex())) {
+                                val parts = payload.split(" ")
+                                opponentShot = Pair(parts[0].toInt(), parts[1].toInt())
+                                val adapter = mPager.adapter as MyViewPagerAdapter
+                                val playerFragment =
+                                    adapter.registeredFragments[0] as PlayerFieldFragment
+                                if (mPager.currentItem != 0) {
+                                    mPager.currentItem = 0
+                                }
+                                val shotResult =
+                                    playerFragment.getShot(opponentShot.first, opponentShot.second)
+                                connectionsClient.sendPayload(
+                                    opponentEndpointId,
+                                    Payload.fromBytes(
+                                        shotResult.toString().toByteArray()
+                                    )
+                                )
+                                playerTurn = shotResult == ShotResult.MISS
+                                if (playerTurn) {
+                                    mPager.currentItem = 1
+                                    Snackbar.make(
+                                        coordinator_layout,
+                                        "It's your turn now",
+                                        Snackbar.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
                         }
                     }
                 }
@@ -367,14 +399,12 @@ class MatchActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (isOtherPlayerReady && isPlayerReady) {
-            mCountTimeTask = lastNonConfigurationInstance as CountTimeTask?
-            if (mCountTimeTask == null) {
-                mCountTimeTask = CountTimeTask()
-                mCountTimeTask?.execute(0)
-            }
-            mCountTimeTask?.link(this)
+        mCountTimeTask = lastNonConfigurationInstance as CountTimeTask?
+        if (mCountTimeTask == null) {
+            mCountTimeTask = CountTimeTask()
+            mCountTimeTask?.execute(0)
         }
+        mCountTimeTask?.link(this)
         setContentView(R.layout.activity_match)
         val extras = intent.extras
         if (extras != null) {
@@ -488,5 +518,9 @@ class MatchActivity : AppCompatActivity() {
             connectionsClient.disconnectFromEndpoint(opponentEndpointId)
         }
         connectionsClient.stopAllEndpoints()
+    }
+
+    companion object {
+        lateinit var activity: MatchActivity
     }
 }

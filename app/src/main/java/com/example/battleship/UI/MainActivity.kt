@@ -9,9 +9,6 @@ import com.example.battleship.R
 import com.example.battleship.databinding.ActivityMainBinding
 import android.widget.LinearLayout
 import android.widget.EditText
-import com.example.battleship.StatiscticActivity
-import com.example.battleship.UI.snackbar.ShotResultSnackbar
-import com.example.battleship.game.ShotResult
 
 
 class MainActivity : AppCompatActivity() {

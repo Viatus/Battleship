@@ -16,7 +16,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".StatiscticActivity"></activity>
+        <activity android:name=".UI.StatiscticActivity"></activity>
         <activity android:name=".UI.MatchActivity" />
         <activity android:name=".UI.MainActivity">
             <intent-filter>

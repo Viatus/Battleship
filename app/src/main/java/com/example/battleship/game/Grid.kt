@@ -101,7 +101,6 @@ class Grid() {
             ShotResult.DESTROYED -> {
                 numberOfShips--
                 field[x][y] = GridCell.HIT
-                changedList.add(Pair(x, y))
                 val cells = mutableListOf<Pair<Int, Int>>()
                 cells.add(Pair(x, y))
                 while (cells.isNotEmpty()) {
@@ -124,9 +123,7 @@ class Grid() {
                         }
                     }
                     field[cell.first][cell.second] = GridCell.DESTROYED
-                    if (cell.first != x && cell.second != y) {
-                        changedList.add(cell)
-                    }
+                    changedList.add(cell)
                     cells.removeAt(0)
                 }
             }
