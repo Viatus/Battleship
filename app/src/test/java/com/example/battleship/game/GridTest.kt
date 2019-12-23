@@ -29,9 +29,9 @@ class GridTest {
             assertEquals(GridCell.SHIP, grid.field[i][9])
         }
 
-        assertTrue(grid.addShip(9, 7, 2, false))
+        assertTrue(grid.addShip(5, 7, 2, false))
         for (i in 7..8) {
-            assertEquals(GridCell.SHIP, grid.field[9][i])
+            assertEquals(GridCell.SHIP, grid.field[5][i])
         }
 
         assertFalse(grid.addShip(5, 9, 4, true))
@@ -41,16 +41,29 @@ class GridTest {
     @Test
     fun updateField() {
         val grid = Grid()
-        assertTrue(grid.updateField(0, 0, ShotResult.MISS))
+        assertEquals(listOf(Pair(0, 0)), grid.updateField(0, 0, ShotResult.MISS))
         assertEquals(GridCell.CHECKED, grid.field[0][0])
 
-        assertFalse(grid.updateField(0, 0, ShotResult.HIT))
+        assertEquals(null, grid.updateField(0, 0, ShotResult.HIT))
 
-        assertTrue(grid.updateField(0, 1, ShotResult.HIT))
+        assertEquals(listOf(Pair(0, 1)), grid.updateField(0, 1, ShotResult.HIT))
         assertEquals(GridCell.HIT, grid.field[0][1])
-        assertTrue(grid.updateField(0, 2, ShotResult.HIT))
+        assertEquals(listOf(Pair(0, 2)), grid.updateField(0, 2, ShotResult.HIT))
         assertEquals(GridCell.HIT, grid.field[0][2])
-        assertTrue(grid.updateField(0, 3, ShotResult.DESTROYED))
+        assertEquals(
+            listOf(
+                Pair(0, 4),
+                Pair(1, 2),
+                Pair(1, 3),
+                Pair(1, 4),
+                Pair(0, 3),
+                Pair(1, 1),
+                Pair(0, 2),
+                Pair(1, 0),
+                Pair(0, 1)
+            ),
+            grid.updateField(0, 3, ShotResult.DESTROYED)
+        )
         for (i in 1..3) {
             assertEquals(GridCell.DESTROYED, grid.field[0][i])
         }
@@ -64,7 +77,7 @@ class GridTest {
     @Test
     fun shoot() {
         val grid = Grid()
-        grid.addShip(0,0,3,true)
+        grid.addShip(0, 0, 3, true)
 
         assertEquals(ShotResult.MISS, grid.shoot(1, 2))
         assertEquals(ShotResult.HIT, grid.shoot(2, 0))
